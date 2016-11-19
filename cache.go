@@ -11,8 +11,9 @@ import (
 )
 
 type Item struct {
-	Object     interface{}
-	Expiration int64
+	Object          interface{}
+	Expiration      int64
+	RefreshDeadline int64
 }
 
 // Returns true if the item has expired.
@@ -23,9 +24,19 @@ func (item Item) Expired() bool {
 	return time.Now().UnixNano() > item.Expiration
 }
 
+// Returns true if the item has reached its refresh deadline.
+func (item Item) RefreshDeadlineReached() bool {
+	if item.RefreshDeadline == 0 {
+		return false
+	}
+	return time.Now().UnixNano() > item.RefreshDeadline
+}
+
 const (
 	// For use with functions that take an expiration time.
 	NoExpiration time.Duration = -1
+	// For use with functions that take an expiration time.
+	NoRefreshDeadline time.Duration = -1
 	// For use with functions that take an expiration time. Equivalent to
 	// passing in the same expiration duration as was given to New() or
 	// NewFrom() when the cache was created (e.g. 5 minutes.)
@@ -43,68 +54,79 @@ type cache struct {
 	mu                sync.RWMutex
 	onEvicted         func(string, interface{})
 	janitor           *janitor
+	onRefreshNeeded   func(string, interface{})
 }
 
 // Add an item to the cache, replacing any existing item. If the duration is 0
 // (DefaultExpiration), the cache's default expiration time is used. If it is -1
 // (NoExpiration), the item never expires.
-func (c *cache) Set(k string, x interface{}, d time.Duration) {
+func (c *cache) Set(k string, x interface{}, d time.Duration, rd time.Duration) {
 	// "Inlining" of set
 	var e int64
+	var erd int64
 	if d == DefaultExpiration {
 		d = c.defaultExpiration
 	}
 	if d > 0 {
 		e = time.Now().Add(d).UnixNano()
 	}
+	if rd > 0 {
+		erd = time.Now().Add(rd).UnixNano()
+	}
 	c.mu.Lock()
 	c.items[k] = Item{
 		Object:     x,
 		Expiration: e,
+		RefreshDeadline: erd,
 	}
 	// TODO: Calls to mu.Unlock are currently not deferred because defer
 	// adds ~200 ns (as of go1.)
 	c.mu.Unlock()
 }
 
-func (c *cache) set(k string, x interface{}, d time.Duration) {
+func (c *cache) set(k string, x interface{}, d time.Duration, rd time.Duration) {
 	var e int64
+	var erd int64
 	if d == DefaultExpiration {
 		d = c.defaultExpiration
 	}
 	if d > 0 {
 		e = time.Now().Add(d).UnixNano()
 	}
+	if rd > 0 {
+		erd = time.Now().Add(rd).UnixNano()
+	}
 	c.items[k] = Item{
 		Object:     x,
 		Expiration: e,
+		RefreshDeadline: erd,
 	}
 }
 
 // Add an item to the cache only if an item doesn't already exist for the given
 // key, or if the existing item has expired. Returns an error otherwise.
-func (c *cache) Add(k string, x interface{}, d time.Duration) error {
+func (c *cache) Add(k string, x interface{}, d time.Duration, rd time.Duration) error {
 	c.mu.Lock()
 	_, found := c.get(k)
 	if found {
 		c.mu.Unlock()
 		return fmt.Errorf("Item %s already exists", k)
 	}
-	c.set(k, x, d)
+	c.set(k, x, d, rd)
 	c.mu.Unlock()
 	return nil
 }
 
 // Set a new value for the cache key only if it already exists, and the existing
 // item hasn't expired. Returns an error otherwise.
-func (c *cache) Replace(k string, x interface{}, d time.Duration) error {
+func (c *cache) Replace(k string, x interface{}, d time.Duration, rd time.Duration) error {
 	c.mu.Lock()
 	_, found := c.get(k)
 	if !found {
 		c.mu.Unlock()
 		return fmt.Errorf("Item %s doesn't exist", k)
 	}
-	c.set(k, x, d)
+	c.set(k, x, d, rd)
 	c.mu.Unlock()
 	return nil
 }
@@ -125,6 +147,19 @@ func (c *cache) Get(k string) (interface{}, bool) {
 			return nil, false
 		}
 	}
+	if item.RefreshDeadline > 0 {
+		if time.Now().UnixNano() > item.RefreshDeadline {
+			var once sync.Once
+			done := make(chan bool)
+			onceBody := func() {
+				c.onRefreshNeeded(k, item.Object)
+			}
+			go func() {
+				once.Do(onceBody)
+				done <- true
+			}()
+		}
+	}
 	c.mu.RUnlock()
 	return item.Object, true
 }
@@ -138,6 +173,20 @@ func (c *cache) get(k string) (interface{}, bool) {
 	if item.Expiration > 0 {
 		if time.Now().UnixNano() > item.Expiration {
 			return nil, false
+		}
+	}
+	if item.RefreshDeadline > 0 {
+		if time.Now().UnixNano() > item.RefreshDeadline {
+			var once sync.Once
+			done := make(chan bool)
+			onceBody := func() {
+				c.onRefreshNeeded(k, item.Object)
+			}
+			go func() {
+				once.Do(onceBody)
+				done <- true
+			}()
+
 		}
 	}
 	return item.Object, true
@@ -917,6 +966,14 @@ func (c *cache) DeleteExpired() {
 func (c *cache) OnEvicted(f func(string, interface{})) {
 	c.mu.Lock()
 	c.onEvicted = f
+	c.mu.Unlock()
+}
+
+// Sets an (optional) function that is called with the key and value when an
+// item has reached its refresh deadline from the cache.
+func (c *cache) OnRefreshNeeded(f func(string, interface{})) {
+	c.mu.Lock()
+	c.onRefreshNeeded = f
 	c.mu.Unlock()
 }
 

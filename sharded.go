@@ -39,11 +39,11 @@ func djb33(seed uint32, k string) uint32 {
 	)
 	// Why is all this 5x faster than a for loop?
 	if l >= 4 {
-		for i < l-4 {
+		for i < l - 4 {
 			d = (d * 33) ^ uint32(k[i])
-			d = (d * 33) ^ uint32(k[i+1])
-			d = (d * 33) ^ uint32(k[i+2])
-			d = (d * 33) ^ uint32(k[i+3])
+			d = (d * 33) ^ uint32(k[i + 1])
+			d = (d * 33) ^ uint32(k[i + 2])
+			d = (d * 33) ^ uint32(k[i + 3])
 			i += 4
 		}
 	}
@@ -53,29 +53,29 @@ func djb33(seed uint32, k string) uint32 {
 		d = (d * 33) ^ uint32(k[i])
 	case 3:
 		d = (d * 33) ^ uint32(k[i])
-		d = (d * 33) ^ uint32(k[i+1])
+		d = (d * 33) ^ uint32(k[i + 1])
 	case 4:
 		d = (d * 33) ^ uint32(k[i])
-		d = (d * 33) ^ uint32(k[i+1])
-		d = (d * 33) ^ uint32(k[i+2])
+		d = (d * 33) ^ uint32(k[i + 1])
+		d = (d * 33) ^ uint32(k[i + 2])
 	}
 	return d ^ (d >> 16)
 }
 
 func (sc *shardedCache) bucket(k string) *cache {
-	return sc.cs[djb33(sc.seed, k)%sc.m]
+	return sc.cs[djb33(sc.seed, k) % sc.m]
 }
 
-func (sc *shardedCache) Set(k string, x interface{}, d time.Duration) {
-	sc.bucket(k).Set(k, x, d)
+func (sc *shardedCache) Set(k string, x interface{}, d time.Duration, rd time.Duration) {
+	sc.bucket(k).Set(k, x, d, rd)
 }
 
-func (sc *shardedCache) Add(k string, x interface{}, d time.Duration) error {
-	return sc.bucket(k).Add(k, x, d)
+func (sc *shardedCache) Add(k string, x interface{}, d time.Duration, rd time.Duration) error {
+	return sc.bucket(k).Add(k, x, d, rd)
 }
 
-func (sc *shardedCache) Replace(k string, x interface{}, d time.Duration) error {
-	return sc.bucket(k).Replace(k, x, d)
+func (sc *shardedCache) Replace(k string, x interface{}, d time.Duration, rd time.Duration) error {
+	return sc.bucket(k).Replace(k, x, d, rd)
 }
 
 func (sc *shardedCache) Get(k string) (interface{}, bool) {
