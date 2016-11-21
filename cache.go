@@ -41,7 +41,6 @@ const (
 	// passing in the same expiration duration as was given to New() or
 	// NewFrom() when the cache was created (e.g. 5 minutes.)
 	DefaultExpiration time.Duration = 0
-	RefreshWorkerCount = 1
 )
 
 type Cache struct {
@@ -136,8 +135,12 @@ func (c *cache) Replace(k string, x interface{}, d time.Duration, rd time.Durati
 }
 
 func (c *cache) refreshWorker(id int, jobs <-chan string) {
-	for j := range jobs {
-		c.onRefreshNeeded(j)
+	for k := range jobs {
+		c.onRefreshNeeded(k)
+		c.refreshConcurrencyMutex.Lock()
+		delete(c.refreshConcurrencyMap, k)
+		c.refreshConcurrencyMutex.Unlock()
+
 	}
 }
 
@@ -166,9 +169,6 @@ func (c *cache) Get(k string) (interface{}, bool) {
 				go func() {
 					c.refreshKeys <- k
 				}()
-				c.refreshConcurrencyMutex.Lock()
-				delete(c.refreshConcurrencyMap, k)
-				c.refreshConcurrencyMutex.Unlock()
 			} else {
 				c.refreshConcurrencyMutex.Unlock()
 			}
@@ -1132,7 +1132,7 @@ func runJanitor(c *cache, ci time.Duration) {
 	go j.Run(c)
 }
 
-func newCache(de time.Duration, m map[string]Item) *cache {
+func newCache(de time.Duration, m map[string]Item, refreshWorkerCount int) *cache {
 	if de == 0 {
 		de = -1
 	}
@@ -1143,14 +1143,14 @@ func newCache(de time.Duration, m map[string]Item) *cache {
 		refreshConcurrencyMap:make(map[string]bool),
 		refreshKeys: make(chan string, 100),
 	}
-	for i := 1; i <= RefreshWorkerCount; i++ {
+	for i := 1; i <= refreshWorkerCount; i++ {
 		go c.refreshWorker(i, c.refreshKeys)
 	}
 	return c
 }
 
-func newCacheWithJanitor(de time.Duration, ci time.Duration, m map[string]Item) *Cache {
-	c := newCache(de, m)
+func newCacheWithJanitor(de time.Duration, ci time.Duration, m map[string]Item, refreshWorkerCount int) *Cache {
+	c := newCache(de, m, refreshWorkerCount)
 	// This trick ensures that the janitor goroutine (which--granted it
 	// was enabled--is running DeleteExpired on c forever) does not keep
 	// the returned C object from being garbage collected. When it is
@@ -1169,9 +1169,9 @@ func newCacheWithJanitor(de time.Duration, ci time.Duration, m map[string]Item) 
 // the items in the cache never expire (by default), and must be deleted
 // manually. If the cleanup interval is less than one, expired items are not
 // deleted from the cache before calling c.DeleteExpired().
-func New(defaultExpiration, cleanupInterval time.Duration) *Cache {
+func New(defaultExpiration, cleanupInterval time.Duration, refreshWorkerCount int) *Cache {
 	items := make(map[string]Item)
-	return newCacheWithJanitor(defaultExpiration, cleanupInterval, items)
+	return newCacheWithJanitor(defaultExpiration, cleanupInterval, items, refreshWorkerCount)
 }
 
 // Return a new cache with a given default expiration duration and cleanup
@@ -1195,6 +1195,6 @@ func New(defaultExpiration, cleanupInterval time.Duration) *Cache {
 // gob.Register() the individual types stored in the cache before encoding a
 // map retrieved with c.Items(), and to register those same types before
 // decoding a blob containing an items map.
-func NewFrom(defaultExpiration, cleanupInterval time.Duration, items map[string]Item) *Cache {
-	return newCacheWithJanitor(defaultExpiration, cleanupInterval, items)
+func NewFrom(defaultExpiration, cleanupInterval time.Duration, items map[string]Item, refreshWorkerCount int) *Cache {
+	return newCacheWithJanitor(defaultExpiration, cleanupInterval, items, refreshWorkerCount)
 }
