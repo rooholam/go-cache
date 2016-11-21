@@ -41,6 +41,7 @@ const (
 	// passing in the same expiration duration as was given to New() or
 	// NewFrom() when the cache was created (e.g. 5 minutes.)
 	DefaultExpiration time.Duration = 0
+	RefreshWorkerCount = 1
 )
 
 type Cache struct {
@@ -49,12 +50,15 @@ type Cache struct {
 }
 
 type cache struct {
-	defaultExpiration time.Duration
-	items             map[string]Item
-	mu                sync.RWMutex
-	onEvicted         func(string, interface{})
-	janitor           *janitor
-	onRefreshNeeded   func(string, interface{})
+	defaultExpiration       time.Duration
+	items                   map[string]Item
+	mu                      sync.RWMutex
+	onEvicted               func(string, interface{})
+	janitor                 *janitor
+	onRefreshNeeded         func(string)
+	refreshConcurrencyMap   map[string]bool
+	refreshConcurrencyMutex sync.Mutex
+	refreshKeys             chan string
 }
 
 // Add an item to the cache, replacing any existing item. If the duration is 0
@@ -131,6 +135,12 @@ func (c *cache) Replace(k string, x interface{}, d time.Duration, rd time.Durati
 	return nil
 }
 
+func (c *cache) refreshWorker(id int, jobs <-chan string) {
+	for j := range jobs {
+		c.onRefreshNeeded(j)
+	}
+}
+
 // Get an item from the cache. Returns the item or nil, and a bool indicating
 // whether the key was found.
 func (c *cache) Get(k string) (interface{}, bool) {
@@ -148,16 +158,21 @@ func (c *cache) Get(k string) (interface{}, bool) {
 		}
 	}
 	if item.RefreshDeadline > 0 {
-		if time.Now().UnixNano() > item.RefreshDeadline {
-			var once sync.Once
-			done := make(chan bool)
-			onceBody := func() {
-				c.onRefreshNeeded(k, item.Object)
+		if item.RefreshDeadlineReached() {
+			c.refreshConcurrencyMutex.Lock()
+			if _, ok := c.refreshConcurrencyMap[k]; !ok {
+				c.refreshConcurrencyMap[k] = true
+				c.refreshConcurrencyMutex.Unlock()
+				go func() {
+					c.refreshKeys <- k
+				}()
+				c.refreshConcurrencyMutex.Lock()
+				delete(c.refreshConcurrencyMap, k)
+				c.refreshConcurrencyMutex.Unlock()
+			} else {
+				c.refreshConcurrencyMutex.Unlock()
 			}
-			go func() {
-				once.Do(onceBody)
-				done <- true
-			}()
+
 		}
 	}
 	c.mu.RUnlock()
@@ -176,16 +191,20 @@ func (c *cache) get(k string) (interface{}, bool) {
 		}
 	}
 	if item.RefreshDeadline > 0 {
-		if time.Now().UnixNano() > item.RefreshDeadline {
-			var once sync.Once
-			done := make(chan bool)
-			onceBody := func() {
-				c.onRefreshNeeded(k, item.Object)
+		if item.RefreshDeadlineReached() {
+			c.refreshConcurrencyMutex.Lock()
+			if _, ok := c.refreshConcurrencyMap[k]; !ok {
+				c.refreshConcurrencyMap[k] = true
+				c.refreshConcurrencyMutex.Unlock()
+				go func() {
+					c.refreshKeys <- k
+				}()
+				c.refreshConcurrencyMutex.Lock()
+				delete(c.refreshConcurrencyMap, k)
+				c.refreshConcurrencyMutex.Unlock()
+			} else {
+				c.refreshConcurrencyMutex.Unlock()
 			}
-			go func() {
-				once.Do(onceBody)
-				done <- true
-			}()
 
 		}
 	}
@@ -971,7 +990,7 @@ func (c *cache) OnEvicted(f func(string, interface{})) {
 
 // Sets an (optional) function that is called with the key and value when an
 // item has reached its refresh deadline from the cache.
-func (c *cache) OnRefreshNeeded(f func(string, interface{})) {
+func (c *cache) OnRefreshNeeded(f func(string)) {
 	c.mu.Lock()
 	c.onRefreshNeeded = f
 	c.mu.Unlock()
@@ -1117,9 +1136,15 @@ func newCache(de time.Duration, m map[string]Item) *cache {
 	if de == 0 {
 		de = -1
 	}
+
 	c := &cache{
 		defaultExpiration: de,
 		items:             m,
+		refreshConcurrencyMap:make(map[string]bool),
+		refreshKeys: make(chan string, 100),
+	}
+	for i := 1; i <= RefreshWorkerCount; i++ {
+		go c.refreshWorker(i, c.refreshKeys)
 	}
 	return c
 }
