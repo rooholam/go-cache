@@ -1,8 +1,6 @@
 package cache
 
 import (
-	"bytes"
-	"io/ioutil"
 	"runtime"
 	"strconv"
 	"sync"
@@ -16,7 +14,7 @@ type TestStruct struct {
 }
 
 func TestCache(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 
 	a, found := tc.Get("a")
 	if found || a != nil {
@@ -71,7 +69,7 @@ func TestCache(t *testing.T) {
 func TestCacheTimes(t *testing.T) {
 	var found bool
 
-	tc := New(50 * time.Millisecond, 1 * time.Millisecond, 0)
+	tc := New(50 * time.Millisecond, 1 * time.Millisecond, 0, MemoryStorage())
 	tc.Set("a", 1, DefaultExpiration, NoRefreshDeadline)
 	tc.Set("b", 2, NoExpiration, NoRefreshDeadline)
 	tc.Set("c", 3, 20 * time.Millisecond, NoRefreshDeadline)
@@ -106,36 +104,8 @@ func TestCacheTimes(t *testing.T) {
 	}
 }
 
-func TestNewFrom(t *testing.T) {
-	m := map[string]Item{
-		"a": Item{
-			Object:     1,
-			Expiration: 0,
-		},
-		"b": Item{
-			Object:     2,
-			Expiration: 0,
-		},
-	}
-	tc := NewFrom(DefaultExpiration, 0, m, 0)
-	a, found := tc.Get("a")
-	if !found {
-		t.Fatal("Did not find a")
-	}
-	if a.(int) != 1 {
-		t.Fatal("a is not 1")
-	}
-	b, found := tc.Get("b")
-	if !found {
-		t.Fatal("Did not find b")
-	}
-	if b.(int) != 2 {
-		t.Fatal("b is not 2")
-	}
-}
-
 func TestStorePointerToStruct(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("foo", &TestStruct{Num: 1}, DefaultExpiration, NoRefreshDeadline)
 	x, found := tc.Get("foo")
 	if !found {
@@ -155,7 +125,7 @@ func TestStorePointerToStruct(t *testing.T) {
 }
 
 func TestIncrementWithInt(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tint", 1, DefaultExpiration, NoRefreshDeadline)
 	err := tc.Increment("tint", 2)
 	if err != nil {
@@ -171,7 +141,7 @@ func TestIncrementWithInt(t *testing.T) {
 }
 
 func TestIncrementWithInt8(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tint8", int8(1), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Increment("tint8", 2)
 	if err != nil {
@@ -187,7 +157,7 @@ func TestIncrementWithInt8(t *testing.T) {
 }
 
 func TestIncrementWithInt16(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tint16", int16(1), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Increment("tint16", 2)
 	if err != nil {
@@ -203,7 +173,7 @@ func TestIncrementWithInt16(t *testing.T) {
 }
 
 func TestIncrementWithInt32(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tint32", int32(1), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Increment("tint32", 2)
 	if err != nil {
@@ -219,7 +189,7 @@ func TestIncrementWithInt32(t *testing.T) {
 }
 
 func TestIncrementWithInt64(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tint64", int64(1), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Increment("tint64", 2)
 	if err != nil {
@@ -235,7 +205,7 @@ func TestIncrementWithInt64(t *testing.T) {
 }
 
 func TestIncrementWithUint(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tuint", uint(1), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Increment("tuint", 2)
 	if err != nil {
@@ -251,7 +221,7 @@ func TestIncrementWithUint(t *testing.T) {
 }
 
 func TestIncrementWithUintptr(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tuintptr", uintptr(1), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Increment("tuintptr", 2)
 	if err != nil {
@@ -268,7 +238,7 @@ func TestIncrementWithUintptr(t *testing.T) {
 }
 
 func TestIncrementWithUint8(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tuint8", uint8(1), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Increment("tuint8", 2)
 	if err != nil {
@@ -284,7 +254,7 @@ func TestIncrementWithUint8(t *testing.T) {
 }
 
 func TestIncrementWithUint16(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tuint16", uint16(1), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Increment("tuint16", 2)
 	if err != nil {
@@ -301,7 +271,7 @@ func TestIncrementWithUint16(t *testing.T) {
 }
 
 func TestIncrementWithUint32(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tuint32", uint32(1), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Increment("tuint32", 2)
 	if err != nil {
@@ -317,7 +287,7 @@ func TestIncrementWithUint32(t *testing.T) {
 }
 
 func TestIncrementWithUint64(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tuint64", uint64(1), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Increment("tuint64", 2)
 	if err != nil {
@@ -334,7 +304,7 @@ func TestIncrementWithUint64(t *testing.T) {
 }
 
 func TestIncrementWithFloat32(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("float32", float32(1.5), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Increment("float32", 2)
 	if err != nil {
@@ -350,7 +320,7 @@ func TestIncrementWithFloat32(t *testing.T) {
 }
 
 func TestIncrementWithFloat64(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("float64", float64(1.5), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Increment("float64", 2)
 	if err != nil {
@@ -366,7 +336,7 @@ func TestIncrementWithFloat64(t *testing.T) {
 }
 
 func TestIncrementFloatWithFloat32(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("float32", float32(1.5), DefaultExpiration, NoRefreshDeadline)
 	err := tc.IncrementFloat("float32", 2)
 	if err != nil {
@@ -382,7 +352,7 @@ func TestIncrementFloatWithFloat32(t *testing.T) {
 }
 
 func TestIncrementFloatWithFloat64(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("float64", float64(1.5), DefaultExpiration, NoRefreshDeadline)
 	err := tc.IncrementFloat("float64", 2)
 	if err != nil {
@@ -398,7 +368,7 @@ func TestIncrementFloatWithFloat64(t *testing.T) {
 }
 
 func TestDecrementWithInt(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("int", int(5), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Decrement("int", 2)
 	if err != nil {
@@ -414,7 +384,7 @@ func TestDecrementWithInt(t *testing.T) {
 }
 
 func TestDecrementWithInt8(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("int8", int8(5), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Decrement("int8", 2)
 	if err != nil {
@@ -430,7 +400,7 @@ func TestDecrementWithInt8(t *testing.T) {
 }
 
 func TestDecrementWithInt16(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("int16", int16(5), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Decrement("int16", 2)
 	if err != nil {
@@ -446,7 +416,7 @@ func TestDecrementWithInt16(t *testing.T) {
 }
 
 func TestDecrementWithInt32(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("int32", int32(5), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Decrement("int32", 2)
 	if err != nil {
@@ -462,7 +432,7 @@ func TestDecrementWithInt32(t *testing.T) {
 }
 
 func TestDecrementWithInt64(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("int64", int64(5), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Decrement("int64", 2)
 	if err != nil {
@@ -478,7 +448,7 @@ func TestDecrementWithInt64(t *testing.T) {
 }
 
 func TestDecrementWithUint(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("uint", uint(5), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Decrement("uint", 2)
 	if err != nil {
@@ -494,7 +464,7 @@ func TestDecrementWithUint(t *testing.T) {
 }
 
 func TestDecrementWithUintptr(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("uintptr", uintptr(5), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Decrement("uintptr", 2)
 	if err != nil {
@@ -510,7 +480,7 @@ func TestDecrementWithUintptr(t *testing.T) {
 }
 
 func TestDecrementWithUint8(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("uint8", uint8(5), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Decrement("uint8", 2)
 	if err != nil {
@@ -526,7 +496,7 @@ func TestDecrementWithUint8(t *testing.T) {
 }
 
 func TestDecrementWithUint16(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("uint16", uint16(5), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Decrement("uint16", 2)
 	if err != nil {
@@ -542,7 +512,7 @@ func TestDecrementWithUint16(t *testing.T) {
 }
 
 func TestDecrementWithUint32(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("uint32", uint32(5), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Decrement("uint32", 2)
 	if err != nil {
@@ -558,7 +528,7 @@ func TestDecrementWithUint32(t *testing.T) {
 }
 
 func TestDecrementWithUint64(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("uint64", uint64(5), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Decrement("uint64", 2)
 	if err != nil {
@@ -574,7 +544,7 @@ func TestDecrementWithUint64(t *testing.T) {
 }
 
 func TestDecrementWithFloat32(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("float32", float32(5.5), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Decrement("float32", 2)
 	if err != nil {
@@ -590,7 +560,7 @@ func TestDecrementWithFloat32(t *testing.T) {
 }
 
 func TestDecrementWithFloat64(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("float64", float64(5.5), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Decrement("float64", 2)
 	if err != nil {
@@ -606,7 +576,7 @@ func TestDecrementWithFloat64(t *testing.T) {
 }
 
 func TestDecrementFloatWithFloat32(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("float32", float32(5.5), DefaultExpiration, NoRefreshDeadline)
 	err := tc.DecrementFloat("float32", 2)
 	if err != nil {
@@ -622,7 +592,7 @@ func TestDecrementFloatWithFloat32(t *testing.T) {
 }
 
 func TestDecrementFloatWithFloat64(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("float64", float64(5.5), DefaultExpiration, NoRefreshDeadline)
 	err := tc.DecrementFloat("float64", 2)
 	if err != nil {
@@ -638,7 +608,7 @@ func TestDecrementFloatWithFloat64(t *testing.T) {
 }
 
 func TestIncrementInt(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tint", 1, DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.IncrementInt("tint", 2)
 	if err != nil {
@@ -657,7 +627,7 @@ func TestIncrementInt(t *testing.T) {
 }
 
 func TestIncrementInt8(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tint8", int8(1), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.IncrementInt8("tint8", 2)
 	if err != nil {
@@ -676,7 +646,7 @@ func TestIncrementInt8(t *testing.T) {
 }
 
 func TestIncrementInt16(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tint16", int16(1), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.IncrementInt16("tint16", 2)
 	if err != nil {
@@ -695,7 +665,7 @@ func TestIncrementInt16(t *testing.T) {
 }
 
 func TestIncrementInt32(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tint32", int32(1), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.IncrementInt32("tint32", 2)
 	if err != nil {
@@ -714,7 +684,7 @@ func TestIncrementInt32(t *testing.T) {
 }
 
 func TestIncrementInt64(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tint64", int64(1), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.IncrementInt64("tint64", 2)
 	if err != nil {
@@ -733,7 +703,7 @@ func TestIncrementInt64(t *testing.T) {
 }
 
 func TestIncrementUint(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tuint", uint(1), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.IncrementUint("tuint", 2)
 	if err != nil {
@@ -752,7 +722,7 @@ func TestIncrementUint(t *testing.T) {
 }
 
 func TestIncrementUintptr(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tuintptr", uintptr(1), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.IncrementUintptr("tuintptr", 2)
 	if err != nil {
@@ -771,7 +741,7 @@ func TestIncrementUintptr(t *testing.T) {
 }
 
 func TestIncrementUint8(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tuint8", uint8(1), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.IncrementUint8("tuint8", 2)
 	if err != nil {
@@ -790,7 +760,7 @@ func TestIncrementUint8(t *testing.T) {
 }
 
 func TestIncrementUint16(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tuint16", uint16(1), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.IncrementUint16("tuint16", 2)
 	if err != nil {
@@ -809,7 +779,7 @@ func TestIncrementUint16(t *testing.T) {
 }
 
 func TestIncrementUint32(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tuint32", uint32(1), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.IncrementUint32("tuint32", 2)
 	if err != nil {
@@ -828,7 +798,7 @@ func TestIncrementUint32(t *testing.T) {
 }
 
 func TestIncrementUint64(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("tuint64", uint64(1), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.IncrementUint64("tuint64", 2)
 	if err != nil {
@@ -847,7 +817,7 @@ func TestIncrementUint64(t *testing.T) {
 }
 
 func TestIncrementFloat32(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("float32", float32(1.5), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.IncrementFloat32("float32", 2)
 	if err != nil {
@@ -866,7 +836,7 @@ func TestIncrementFloat32(t *testing.T) {
 }
 
 func TestIncrementFloat64(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("float64", float64(1.5), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.IncrementFloat64("float64", 2)
 	if err != nil {
@@ -885,7 +855,7 @@ func TestIncrementFloat64(t *testing.T) {
 }
 
 func TestDecrementInt8(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("int8", int8(5), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.DecrementInt8("int8", 2)
 	if err != nil {
@@ -904,7 +874,7 @@ func TestDecrementInt8(t *testing.T) {
 }
 
 func TestDecrementInt16(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("int16", int16(5), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.DecrementInt16("int16", 2)
 	if err != nil {
@@ -923,7 +893,7 @@ func TestDecrementInt16(t *testing.T) {
 }
 
 func TestDecrementInt32(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("int32", int32(5), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.DecrementInt32("int32", 2)
 	if err != nil {
@@ -942,7 +912,7 @@ func TestDecrementInt32(t *testing.T) {
 }
 
 func TestDecrementInt64(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("int64", int64(5), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.DecrementInt64("int64", 2)
 	if err != nil {
@@ -961,7 +931,7 @@ func TestDecrementInt64(t *testing.T) {
 }
 
 func TestDecrementUint(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("uint", uint(5), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.DecrementUint("uint", 2)
 	if err != nil {
@@ -980,7 +950,7 @@ func TestDecrementUint(t *testing.T) {
 }
 
 func TestDecrementUintptr(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("uintptr", uintptr(5), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.DecrementUintptr("uintptr", 2)
 	if err != nil {
@@ -999,7 +969,7 @@ func TestDecrementUintptr(t *testing.T) {
 }
 
 func TestDecrementUint8(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("uint8", uint8(5), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.DecrementUint8("uint8", 2)
 	if err != nil {
@@ -1018,7 +988,7 @@ func TestDecrementUint8(t *testing.T) {
 }
 
 func TestDecrementUint16(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("uint16", uint16(5), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.DecrementUint16("uint16", 2)
 	if err != nil {
@@ -1037,7 +1007,7 @@ func TestDecrementUint16(t *testing.T) {
 }
 
 func TestDecrementUint32(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("uint32", uint32(5), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.DecrementUint32("uint32", 2)
 	if err != nil {
@@ -1056,7 +1026,7 @@ func TestDecrementUint32(t *testing.T) {
 }
 
 func TestDecrementUint64(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("uint64", uint64(5), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.DecrementUint64("uint64", 2)
 	if err != nil {
@@ -1075,7 +1045,7 @@ func TestDecrementUint64(t *testing.T) {
 }
 
 func TestDecrementFloat32(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("float32", float32(5), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.DecrementFloat32("float32", 2)
 	if err != nil {
@@ -1094,7 +1064,7 @@ func TestDecrementFloat32(t *testing.T) {
 }
 
 func TestDecrementFloat64(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("float64", float64(5), DefaultExpiration, NoRefreshDeadline)
 	n, err := tc.DecrementFloat64("float64", 2)
 	if err != nil {
@@ -1113,7 +1083,7 @@ func TestDecrementFloat64(t *testing.T) {
 }
 
 func TestAdd(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	err := tc.Add("foo", "bar", DefaultExpiration, NoRefreshDeadline)
 	if err != nil {
 		t.Error("Couldn't add foo even though it shouldn't exist")
@@ -1125,7 +1095,7 @@ func TestAdd(t *testing.T) {
 }
 
 func TestReplace(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	err := tc.Replace("foo", "bar", DefaultExpiration, NoRefreshDeadline)
 	if err == nil {
 		t.Error("Replaced foo when it shouldn't exist")
@@ -1138,7 +1108,7 @@ func TestReplace(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("foo", "bar", DefaultExpiration, NoRefreshDeadline)
 	tc.Delete("foo")
 	x, found := tc.Get("foo")
@@ -1150,18 +1120,8 @@ func TestDelete(t *testing.T) {
 	}
 }
 
-func TestItemCount(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
-	tc.Set("foo", "1", DefaultExpiration, NoRefreshDeadline)
-	tc.Set("bar", "2", DefaultExpiration, NoRefreshDeadline)
-	tc.Set("baz", "3", DefaultExpiration, NoRefreshDeadline)
-	if n := tc.ItemCount(); n != 3 {
-		t.Errorf("Item count is not 3: %d", n)
-	}
-}
-
 func TestFlush(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("foo", "bar", DefaultExpiration, NoRefreshDeadline)
 	tc.Set("baz", "yes", DefaultExpiration, NoRefreshDeadline)
 	tc.Flush()
@@ -1182,7 +1142,7 @@ func TestFlush(t *testing.T) {
 }
 
 func TestIncrementOverflowInt(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("int8", int8(127), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Increment("int8", 1)
 	if err != nil {
@@ -1197,7 +1157,7 @@ func TestIncrementOverflowInt(t *testing.T) {
 }
 
 func TestIncrementOverflowUint(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("uint8", uint8(255), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Increment("uint8", 1)
 	if err != nil {
@@ -1211,7 +1171,7 @@ func TestIncrementOverflowUint(t *testing.T) {
 }
 
 func TestDecrementUnderflowUint(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("uint8", uint8(0), DefaultExpiration, NoRefreshDeadline)
 	err := tc.Decrement("uint8", 1)
 	if err != nil {
@@ -1221,207 +1181,6 @@ func TestDecrementUnderflowUint(t *testing.T) {
 	uint8 := x.(uint8)
 	if uint8 != 255 {
 		t.Error("uint8 did not underflow as expected; value:", uint8)
-	}
-}
-
-func TestOnEvicted(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
-	tc.Set("foo", 3, DefaultExpiration, NoRefreshDeadline)
-	if tc.onEvicted != nil {
-		t.Fatal("tc.onEvicted is not nil")
-	}
-	works := false
-	tc.OnEvicted(func(k string, v interface{}) {
-		if k == "foo" && v.(int) == 3 {
-			works = true
-		}
-		tc.Set("bar", 4, DefaultExpiration, NoRefreshDeadline)
-	})
-	tc.Delete("foo")
-	x, _ := tc.Get("bar")
-	if !works {
-		t.Error("works bool not true")
-	}
-	if x.(int) != 4 {
-		t.Error("bar was not 4")
-	}
-}
-
-func TestCacheSerialization(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
-	testFillAndSerialize(t, tc)
-
-	// Check if gob.Register behaves properly even after multiple gob.Register
-	// on c.Items (many of which will be the same type)
-	testFillAndSerialize(t, tc)
-}
-
-func testFillAndSerialize(t *testing.T, tc *Cache) {
-	tc.Set("a", "a", DefaultExpiration, NoRefreshDeadline)
-	tc.Set("b", "b", DefaultExpiration, NoRefreshDeadline)
-	tc.Set("c", "c", DefaultExpiration, NoRefreshDeadline)
-	tc.Set("expired", "foo", 1 * time.Millisecond, NoRefreshDeadline)
-	tc.Set("*struct", &TestStruct{Num: 1}, DefaultExpiration, NoRefreshDeadline)
-	tc.Set("[]struct", []TestStruct{
-		{Num: 2},
-		{Num: 3},
-	}, DefaultExpiration, NoRefreshDeadline)
-	tc.Set("[]*struct", []*TestStruct{
-		&TestStruct{Num: 4},
-		&TestStruct{Num: 5},
-	}, DefaultExpiration, NoRefreshDeadline)
-	tc.Set("structception", &TestStruct{
-		Num: 42,
-		Children: []*TestStruct{
-			&TestStruct{Num: 6174},
-			&TestStruct{Num: 4716},
-		},
-	}, DefaultExpiration, NoRefreshDeadline)
-
-	fp := &bytes.Buffer{}
-	err := tc.Save(fp)
-	if err != nil {
-		t.Fatal("Couldn't save cache to fp:", err)
-	}
-
-	oc := New(DefaultExpiration, 0, 0)
-	err = oc.Load(fp)
-	if err != nil {
-		t.Fatal("Couldn't load cache from fp:", err)
-	}
-
-	a, found := oc.Get("a")
-	if !found {
-		t.Error("a was not found")
-	}
-	if a.(string) != "a" {
-		t.Error("a is not a")
-	}
-
-	b, found := oc.Get("b")
-	if !found {
-		t.Error("b was not found")
-	}
-	if b.(string) != "b" {
-		t.Error("b is not b")
-	}
-
-	c, found := oc.Get("c")
-	if !found {
-		t.Error("c was not found")
-	}
-	if c.(string) != "c" {
-		t.Error("c is not c")
-	}
-
-	<-time.After(5 * time.Millisecond)
-	_, found = oc.Get("expired")
-	if found {
-		t.Error("expired was found")
-	}
-
-	s1, found := oc.Get("*struct")
-	if !found {
-		t.Error("*struct was not found")
-	}
-	if s1.(*TestStruct).Num != 1 {
-		t.Error("*struct.Num is not 1")
-	}
-
-	s2, found := oc.Get("[]struct")
-	if !found {
-		t.Error("[]struct was not found")
-	}
-	s2r := s2.([]TestStruct)
-	if len(s2r) != 2 {
-		t.Error("Length of s2r is not 2")
-	}
-	if s2r[0].Num != 2 {
-		t.Error("s2r[0].Num is not 2")
-	}
-	if s2r[1].Num != 3 {
-		t.Error("s2r[1].Num is not 3")
-	}
-
-	s3, found := oc.get("[]*struct")
-	if !found {
-		t.Error("[]*struct was not found")
-	}
-	s3r := s3.([]*TestStruct)
-	if len(s3r) != 2 {
-		t.Error("Length of s3r is not 2")
-	}
-	if s3r[0].Num != 4 {
-		t.Error("s3r[0].Num is not 4")
-	}
-	if s3r[1].Num != 5 {
-		t.Error("s3r[1].Num is not 5")
-	}
-
-	s4, found := oc.get("structception")
-	if !found {
-		t.Error("structception was not found")
-	}
-	s4r := s4.(*TestStruct)
-	if len(s4r.Children) != 2 {
-		t.Error("Length of s4r.Children is not 2")
-	}
-	if s4r.Children[0].Num != 6174 {
-		t.Error("s4r.Children[0].Num is not 6174")
-	}
-	if s4r.Children[1].Num != 4716 {
-		t.Error("s4r.Children[1].Num is not 4716")
-	}
-}
-
-func TestFileSerialization(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
-	tc.Add("a", "a", DefaultExpiration, NoRefreshDeadline)
-	tc.Add("b", "b", DefaultExpiration, NoRefreshDeadline)
-	f, err := ioutil.TempFile("", "go-cache-cache.dat")
-	if err != nil {
-		t.Fatal("Couldn't create cache file:", err)
-	}
-	fname := f.Name()
-	f.Close()
-	tc.SaveFile(fname)
-
-	oc := New(DefaultExpiration, 0, 0)
-	oc.Add("a", "aa", 0, NoRefreshDeadline) // this should not be overwritten
-	err = oc.LoadFile(fname)
-	if err != nil {
-		t.Error(err)
-	}
-	a, found := oc.Get("a")
-	if !found {
-		t.Error("a was not found")
-	}
-	astr := a.(string)
-	if astr != "aa" {
-		if astr == "a" {
-			t.Error("a was overwritten")
-		} else {
-			t.Error("a is not aa")
-		}
-	}
-	b, found := oc.Get("b")
-	if !found {
-		t.Error("b was not found")
-	}
-	if b.(string) != "b" {
-		t.Error("b is not b")
-	}
-}
-
-func TestSerializeUnserializable(t *testing.T) {
-	tc := New(DefaultExpiration, 0, 0)
-	ch := make(chan bool, 1)
-	ch <- true
-	tc.Set("chan", ch, DefaultExpiration, NoRefreshDeadline)
-	fp := &bytes.Buffer{}
-	err := tc.Save(fp) // this should fail gracefully
-	if err.Error() != "gob NewTypeObject can't handle type: chan bool" {
-		t.Error("Error from Save was not gob NewTypeObject can't handle type chan bool:", err)
 	}
 }
 
@@ -1435,7 +1194,7 @@ func BenchmarkCacheGetNotExpiring(b *testing.B) {
 
 func benchmarkCacheGet(b *testing.B, exp time.Duration) {
 	b.StopTimer()
-	tc := New(exp, 0, 0)
+	tc := New(exp, 0, 0, MemoryStorage())
 	tc.Set("foo", "bar", DefaultExpiration, NoRefreshDeadline)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
@@ -1496,7 +1255,7 @@ func BenchmarkCacheGetConcurrentNotExpiring(b *testing.B) {
 
 func benchmarkCacheGetConcurrent(b *testing.B, exp time.Duration) {
 	b.StopTimer()
-	tc := New(exp, 0, 0)
+	tc := New(exp, 0, 0, MemoryStorage())
 	tc.Set("foo", "bar", DefaultExpiration, NoRefreshDeadline)
 	wg := new(sync.WaitGroup)
 	workers := runtime.NumCPU()
@@ -1552,7 +1311,7 @@ func benchmarkCacheGetManyConcurrent(b *testing.B, exp time.Duration) {
 	// in sharded_test.go.
 	b.StopTimer()
 	n := 10000
-	tc := New(exp, 0, 0)
+	tc := New(exp, 0, 0, MemoryStorage())
 	keys := make([]string, n)
 	for i := 0; i < n; i++ {
 		k := "foo" + strconv.Itoa(n)
@@ -1584,7 +1343,7 @@ func BenchmarkCacheSetNotExpiring(b *testing.B) {
 
 func benchmarkCacheSet(b *testing.B, exp time.Duration) {
 	b.StopTimer()
-	tc := New(exp, 0, 0)
+	tc := New(exp, 0, 0, MemoryStorage())
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		tc.Set("foo", "bar", DefaultExpiration, NoRefreshDeadline)
@@ -1605,7 +1364,7 @@ func BenchmarkRWMutexMapSet(b *testing.B) {
 
 func BenchmarkCacheSetDelete(b *testing.B) {
 	b.StopTimer()
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		tc.Set("foo", "bar", DefaultExpiration, NoRefreshDeadline)
@@ -1630,13 +1389,13 @@ func BenchmarkRWMutexMapSetDelete(b *testing.B) {
 
 func BenchmarkCacheSetDeleteSingleLock(b *testing.B) {
 	b.StopTimer()
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		tc.mu.Lock()
+		tc.storage.Lock()
 		tc.set("foo", "bar", DefaultExpiration, NoRefreshDeadline)
 		tc.delete("foo")
-		tc.mu.Unlock()
+		tc.storage.Unlock()
 	}
 }
 
@@ -1655,24 +1414,10 @@ func BenchmarkRWMutexMapSetDeleteSingleLock(b *testing.B) {
 
 func BenchmarkIncrementInt(b *testing.B) {
 	b.StopTimer()
-	tc := New(DefaultExpiration, 0, 0)
+	tc := New(DefaultExpiration, 0, 0, MemoryStorage())
 	tc.Set("foo", 0, DefaultExpiration, NoRefreshDeadline)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		tc.IncrementInt("foo", 1)
-	}
-}
-
-func BenchmarkDeleteExpiredLoop(b *testing.B) {
-	b.StopTimer()
-	tc := New(5 * time.Minute, 0, 0)
-	tc.mu.Lock()
-	for i := 0; i < 100000; i++ {
-		tc.set(strconv.Itoa(i), "bar", DefaultExpiration, NoRefreshDeadline)
-	}
-	tc.mu.Unlock()
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		tc.DeleteExpired()
 	}
 }
