@@ -133,7 +133,9 @@ func (c *cache) Replace(k string, x interface{}, d time.Duration, rd time.Durati
 
 func (c *cache) refreshWorker(id int, jobs <-chan string) {
 	for k := range jobs {
-		c.onRefreshNeeded(k)
+		if c.onRefreshNeeded!=nil {
+			c.onRefreshNeeded(k)
+		}
 		c.refreshConcurrencyMutex.Lock()
 		delete(c.refreshConcurrencyMap, k)
 		c.refreshConcurrencyMutex.Unlock()

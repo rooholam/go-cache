@@ -1,11 +1,15 @@
 package cache
 
 import (
-	"encoding/json"
+	"time"
+	"bytes"
+	"encoding/gob"
+	"fmt"
+	"encoding/base64"
+
 	redis "gopkg.in/redis.v4"
 	log "github.com/Sirupsen/logrus"
 	lock "github.com/bsm/redis-lock"
-	"time"
 )
 
 type redisStorage struct {
@@ -18,12 +22,12 @@ func (s *redisStorage) Get(key string) (Item, bool) {
 	if err != nil {
 		return Item{}, false
 	}
-	return s.UnMarshal(res), true
+	return s.FromGOB64(res), true
 
 }
 
 func (s *redisStorage) Set(key string, item Item) {
-	s.redisClient.Set(key, s.Marshal(item), time.Unix(0, item.Expiration).Sub(time.Now()))
+	s.redisClient.Set(key, s.ToGOB64(item), time.Unix(0, item.Expiration).Sub(time.Now()))
 }
 
 func (s *redisStorage) Del(key string) {
@@ -54,24 +58,31 @@ func (s *redisStorage) Type() int {
 	return STORAGE_TYPE_REDIS
 }
 
-func (s *redisStorage) Marshal(item Item) string {
-	b, err := json.Marshal(item)
+func (s *redisStorage) ToGOB64(m Item) string {
+	b := bytes.Buffer{}
+	e := gob.NewEncoder(&b)
+	err := e.Encode(m)
 	if err != nil {
-		log.Errorf("error marshalling %s", err)
+		fmt.Println(`failed gob Encode`, err)
 	}
-	return string(b)
+	return base64.StdEncoding.EncodeToString(b.Bytes())
 }
 
-func (s *redisStorage) UnMarshal(str string) Item {
-	var item Item
-	err := json.Unmarshal([]byte(str), &item)
+func (s *redisStorage) FromGOB64(str string) Item {
+	m := Item{}
+	by, err := base64.StdEncoding.DecodeString(str)
 	if err != nil {
-		log.Errorf("error unmarshalling %s", err)
-	}
-	return item
+		fmt.Println(`failed base64 Decode`, err); }
+	b := bytes.Buffer{}
+	b.Write(by)
+	d := gob.NewDecoder(&b)
+	err = d.Decode(&m)
+	if err != nil {
+		fmt.Println(`failed gob Decode`, err); }
+	return m
 }
 
-func RedisStorage(addr string, pass string, db int) *redisStorage {
+func RedisStorage(addr string, pass string, db int, objectTypes ...interface{}) *redisStorage {
 	opts := &redis.Options{
 		Addr:     addr,
 		Password: pass,
@@ -94,6 +105,10 @@ func RedisStorage(addr string, pass string, db int) *redisStorage {
 	red := redisStorage{
 		redisClient:client,
 		lock:lock,
+	}
+	gob.Register(Item{})
+	for _, obj := range objectTypes {
+		gob.Register(obj)
 	}
 	return &red
 }
