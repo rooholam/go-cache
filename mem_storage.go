@@ -13,9 +13,10 @@ const (
 type Storage interface {
 	Set(string, Item)
 	Get(string) (Item, bool)
+	GetObject(string, interface{}) (Item, bool)
 	Del(key string)
 	Flush()
-	Type()int
+	Type() int
 
 	Lock()
 	Unlock()
@@ -32,6 +33,9 @@ type memoryStorage struct {
 func (s *memoryStorage) Get(key string) (Item, bool) {
 	item, found := s.items[key]
 	return item, found
+}
+func (s *memoryStorage) GetObject(key string, o interface{}) (Item, bool) {
+	return s.Get(key)
 }
 
 func (s *memoryStorage) Set(key string, item Item) {
@@ -73,10 +77,9 @@ func (s *memoryStorage) RUnlock() {
 	s.mutex.RUnlock()
 }
 
-func (s *memoryStorage) Type() int{
+func (s *memoryStorage) Type() int {
 	return STORAGE_TYPE_MEMORY
 }
-
 
 func MemoryStorage() *memoryStorage {
 	mem := memoryStorage{

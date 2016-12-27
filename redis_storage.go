@@ -1,19 +1,20 @@
 package cache
 
 import (
-	"time"
-	"bytes"
-	"encoding/gob"
 	"fmt"
-	"encoding/base64"
+	"strconv"
+	"strings"
+	"time"
 
 	redis "gopkg.in/redis.v4"
 	log "github.com/Sirupsen/logrus"
 	lock "github.com/bsm/redis-lock"
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 )
 
 type redisStorage struct {
 	redisClient *redis.Client
+	marshaller  *runtime.JSONPb
 	lock        *lock.Lock
 }
 
@@ -22,12 +23,23 @@ func (s *redisStorage) Get(key string) (Item, bool) {
 	if err != nil {
 		return Item{}, false
 	}
-	return s.FromGOB64(res), true
 
+	return s.UnMarshal(res, nil), true
+}
+
+func (s *redisStorage) GetObject(key string, o interface{}) (Item, bool) {
+	fmt.Printf("obj: %s\n",o)
+
+	res, err := s.redisClient.Get(key).Result()
+	if err != nil {
+		return Item{}, false
+	}
+
+	return s.UnMarshal(res, o), true
 }
 
 func (s *redisStorage) Set(key string, item Item) {
-	s.redisClient.Set(key, s.ToGOB64(item), time.Unix(0, item.Expiration).Sub(time.Now()))
+	s.redisClient.Set(key, s.Marshal(item), time.Unix(0, item.Expiration).Sub(time.Now()))
 }
 
 func (s *redisStorage) Del(key string) {
@@ -58,31 +70,32 @@ func (s *redisStorage) Type() int {
 	return STORAGE_TYPE_REDIS
 }
 
-func (s *redisStorage) ToGOB64(m Item) string {
-	b := bytes.Buffer{}
-	e := gob.NewEncoder(&b)
-	err := e.Encode(m)
+func (s *redisStorage) Marshal(m Item) string {
+	res, err := s.marshaller.Marshal(m.Object)
 	if err != nil {
-		fmt.Println(`failed gob Encode`, err)
+		log.Errorf("error marshaling : %s", err)
 	}
-	return base64.StdEncoding.EncodeToString(b.Bytes())
+	out := fmt.Sprintf("%d|%d|%s", m.Expiration, m.RefreshDeadline, string(res))
+	fmt.Printf("marshalled: %s\n", out)
+	return out
 }
 
-func (s *redisStorage) FromGOB64(str string) Item {
-	m := Item{}
-	by, err := base64.StdEncoding.DecodeString(str)
+func (s *redisStorage) UnMarshal(m string, o interface{}) Item {
+	fmt.Printf("obj: %s\n",o)
+	var item Item
+	res := strings.SplitN(m, "|",3)
+	item.Expiration, _ = strconv.ParseInt(res[0], 10, 64)
+	item.RefreshDeadline, _ = strconv.ParseInt(res[1], 10, 64)
+
+	err := s.marshaller.NewDecoder(strings.NewReader(res[2])).Decode(o)
 	if err != nil {
-		fmt.Println(`failed base64 Decode`, err); }
-	b := bytes.Buffer{}
-	b.Write(by)
-	d := gob.NewDecoder(&b)
-	err = d.Decode(&m)
-	if err != nil {
-		fmt.Println(`failed gob Decode`, err); }
-	return m
+		log.Errorf("error unmarshaling : %s", err)
+	}
+	item.Object = o
+	return item
 }
 
-func RedisStorage(addr string, pass string, db int, objectTypes ...interface{}) *redisStorage {
+func RedisStorage(addr string, pass string, db int) *redisStorage {
 	opts := &redis.Options{
 		Addr:     addr,
 		Password: pass,
@@ -105,10 +118,8 @@ func RedisStorage(addr string, pass string, db int, objectTypes ...interface{}) 
 	red := redisStorage{
 		redisClient:client,
 		lock:lock,
+		marshaller:&runtime.JSONPb{OrigName: true},
 	}
-	gob.Register(Item{})
-	for _, obj := range objectTypes {
-		gob.Register(obj)
-	}
+
 	return &red
 }

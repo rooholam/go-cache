@@ -133,7 +133,7 @@ func (c *cache) Replace(k string, x interface{}, d time.Duration, rd time.Durati
 
 func (c *cache) refreshWorker(id int, jobs <-chan string) {
 	for k := range jobs {
-		if c.onRefreshNeeded!=nil {
+		if c.onRefreshNeeded != nil {
 			c.onRefreshNeeded(k)
 		}
 		c.refreshConcurrencyMutex.Lock()
@@ -142,6 +142,43 @@ func (c *cache) refreshWorker(id int, jobs <-chan string) {
 
 	}
 }
+
+// Get an item from the cache. Returns the item or nil, and a bool indicating
+// whether the key was found.
+func (c *cache) GetObject(k string, o interface{}) (interface{}, bool) {
+	c.storage.RLock()
+	// "Inlining" of get and Expired
+
+	item, found := c.storage.GetObject(k, o)
+	if !found {
+		c.storage.RUnlock()
+		return nil, false
+	}
+	if item.Expiration > 0 {
+		if time.Now().UnixNano() > item.Expiration {
+			c.storage.RUnlock()
+			return nil, false
+		}
+	}
+	if item.RefreshDeadline > 0 {
+		if item.RefreshDeadlineReached() {
+			c.refreshConcurrencyMutex.Lock()
+			if _, ok := c.refreshConcurrencyMap[k]; !ok {
+				c.refreshConcurrencyMap[k] = true
+				c.refreshConcurrencyMutex.Unlock()
+				go func() {
+					c.refreshKeys <- k
+				}()
+			} else {
+				c.refreshConcurrencyMutex.Unlock()
+			}
+
+		}
+	}
+	c.storage.RUnlock()
+	return item.Object, true
+}
+
 
 // Get an item from the cache. Returns the item or nil, and a bool indicating
 // whether the key was found.
