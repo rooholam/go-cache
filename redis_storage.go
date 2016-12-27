@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"bytes"
 	"time"
 
 	redis "gopkg.in/redis.v4"
@@ -28,8 +29,6 @@ func (s *redisStorage) Get(key string) (Item, bool) {
 }
 
 func (s *redisStorage) GetObject(key string, o interface{}) (Item, bool) {
-	fmt.Printf("obj: %s\n",o)
-
 	res, err := s.redisClient.Get(key).Result()
 	if err != nil {
 		return Item{}, false
@@ -75,15 +74,16 @@ func (s *redisStorage) Marshal(m Item) string {
 	if err != nil {
 		log.Errorf("error marshaling : %s", err)
 	}
-	out := fmt.Sprintf("%d|%d|%s", m.Expiration, m.RefreshDeadline, string(res))
-	fmt.Printf("marshalled: %s\n", out)
+	var buf bytes.Buffer
+	buf.WriteString(fmt.Sprintf("%d|%d|", m.Expiration, m.RefreshDeadline))
+	buf.Write(res)
+	out := buf.String()
 	return out
 }
 
 func (s *redisStorage) UnMarshal(m string, o interface{}) Item {
-	fmt.Printf("obj: %s\n",o)
 	var item Item
-	res := strings.SplitN(m, "|",3)
+	res := strings.SplitN(m, "|", 3)
 	item.Expiration, _ = strconv.ParseInt(res[0], 10, 64)
 	item.RefreshDeadline, _ = strconv.ParseInt(res[1], 10, 64)
 
